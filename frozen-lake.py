@@ -52,13 +52,13 @@ def reduce_epsilon(epsilon, epoch):
 rewards = []
 log_interval = 1000
 
-fig = plt.figure()
-ax = fig.add_subplot(111)
-plt.ion()
-fig.canvas.draw()
-plt.show(block=True)
-epoch_plot_tracker = []
-total_reward_plot_tracker = []
+# fig = plt.figure()
+# ax = fig.add_subplot(111)
+# plt.ion()
+# fig.canvas.draw()
+# plt.show(block=True)
+# epoch_plot_tracker = []
+# total_reward_plot_tracker = []
 
 for episode in range(EPOCHS):
     state = env.reset()[0]
@@ -84,29 +84,33 @@ for episode in range(EPOCHS):
     epsilon = reduce_epsilon(epsilon, episode)
     rewards.append(total_rewards)
 
-    total_reward_plot_tracker.append(np.sum(rewards))
-    epoch_plot_tracker.append(episode)
+    # total_reward_plot_tracker.append(np.sum(rewards))
+    # epoch_plot_tracker.append(episode)
     ########################################
     if episode % log_interval == 0:
-        ax.clear()
-        ax.plot(epoch_plot_tracker, total_reward_plot_tracker)
-        fig.canvas.draw()
+        print(np.sum(rewards))
+        # ax.clear()
+        # ax.plot(epoch_plot_tracker, total_reward_plot_tracker)
+        # fig.canvas.draw()
     ########################################
 
 env.close()
-np.savetxt("q_table.csv", q_table, delimiter=",")
+# np.savetxt("q_table.csv", q_table, delimiter=",")
 
 # q_table = np.genfromtxt("./q_table.csv", delimiter=",")
 # q_table = np.reshape(q_table, (state_size, action_size))
 # state = env.reset()[0]
 
-# for steps in range(100):
-#     action = np.argmax(q_table[state,:])
-#     print("action",action)
-#     new_state,reward,terminated,truncated,info = env.step(action)
-#     time.sleep(1)
-#     if terminated:
-#         break;
+second_env = gym.make('FrozenLake-v1', desc=None, render_mode="human", map_name="4x4", is_slippery=False)
+state = second_env.reset()[0]
+for steps in range(100):
+    action = np.argmax(q_table[state,:])
+    print("action",action)
+    new_state,reward,terminated,truncated,info = second_env.step(action)
+    time.sleep(1)
+    state = new_state
+    if terminated:
+        break;
 
 # for step in range(5):
 #     env.render()
