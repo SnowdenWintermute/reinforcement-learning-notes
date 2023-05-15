@@ -24,9 +24,9 @@ state_size = env.observation_space.n
 q_table = np.zeros([state_size, action_size])
 
 EPOCHS=20000 # aka episodes (how many times the agent plays a game until termination)
-ALPHA = 0.8 # learning rate
+ALPHA = 0.8 # learning rate, how fast the q table is updated
 GAMMA = 0.9  # discount rate (exponential multiplier against future rewards)
-epsilon = 1.0 # exploration vs exploitation
+epsilon = 1.0 # exploration vs exploitation. the chance to choose a random action vs a known good action
 max_epsilon = 1.0
 min_epsilon = 0.01
 decay_rate = 0.001
