@@ -1,0 +1,108 @@
+import numpy as np
+import sys
+import matplotlib.pyplot as plt
+import gymnasium as gym
+from gymnasium.envs.registration import register
+
+env = gym.make('MountainCar-v0')
+
+def create_bins(num_bins_per_observation):
+    car_position = np.linspace(-1.2, 0.6, num_bins_per_observation)  # bins for the car position
+    car_velocity = np.linspace(-0.07, 0.07, num_bins_per_observation)  # bins for the car velocity
+    bins = np.array([car_position, car_velocity])  # merge them
+    return bins
+
+NUM_BINS = 40  #  number of bins for this task
+BINS = create_bins(NUM_BINS)  # Create the bins used for the rest of the notebook
+
+def discretize_observation(observations, bins):
+    binned_observations = []
+    for i, observation in enumerate(observations):
+        discretized_observation = np.digitize(observation, bins[i])
+        binned_observations.append(discretized_observation)
+    return tuple(binned_observations) # Important for later indexing
+
+q_table_shape = (NUM_BINS, NUM_BINS, env.action_space.n)
+q_table = np.zeros(q_table_shape)
+print(q_table.shape)
+
+def epsilon_greedy_action_selection(epsilon, q_table, discrete_state):
+    if np.random.random() > epsilon:
+        action = np.argmax(q_table[discrete_state])
+    else:
+        action = np.random.randint(0, env.action_space.n)
+    return action
+
+def compute_next_q_value(old_q_value, reward, next_optimal_q_value):
+    return old_q_value +  ALPHA * (reward + GAMMA * next_optimal_q_value - old_q_value)
+
+def reduce_epsilon(epsilon, epoch):
+    if BURN_IN <= epoch <= EPSILON_END:
+        epsilon-= EPSILON_REDUCE
+    return epsilon
+
+EPOCHS = 30000
+BURN_IN = 100
+epsilon = 1
+
+EPSILON_END= 10000
+EPSILON_REDUCE = 0.0001 #epsilon / EPOCHS
+
+ALPHA = 0.8
+GAMMA = 0.9
+
+log_interval = 100  # How often do we update the plot? (Just for performance reasons)
+### Here we set up the routine for the live plotting of the achieved points ######
+fig = plt.figure()
+ax = fig.add_subplot(111)
+plt.ion()
+fig.canvas.draw()
+##################################################################################
+
+max_position_log = []  # to store all achieved points
+mean_positions_log = []  # to store a running mean of the last 30 results
+epochs = []  # store the epoch for plotting
+
+for epoch in range(EPOCHS):
+    ################################# TODO ######################################
+    
+    # TODO: Get initial observation and discretize them. Set done to False
+    initial_state = env.reset()[0]
+    discretized_state = discretize_observation(initial_state, BINS)  # map the observation to the bins
+    terminated = False  # to stop current run when the car reaches the top or the time limit is reached
+    truncated = False
+    max_position = -np.inf  # for plotting
+    epochs.append(epoch)
+
+    while not terminated and not truncated:  # Perform current run as long as done is False (as long as there is still time to reach the top)
+        action = epsilon_greedy_action_selection(epsilon, q_table, discretized_state)  # Epsilon-Greedy Action Selection
+        next_state, reward, terminated, truncated, info = env.step(action)  # perform action and get next state
+        position, velocity = next_state
+        next_state_discretized = discretize_observation(next_state, BINS)  # map the next observation to the bins
+        old_q_value =  q_table[discretized_state + (action,)]  # get the old Q-Value from the Q-Table
+        next_optimal_q_value = np.max(q_table[next_state_discretized])  # Get the next optimal Q-Value
+        next_q = compute_next_q_value(old_q_value, reward, next_optimal_q_value)  # Compute next Q-Value
+        q_table[discretized_state + (action,)] = next_q  # Insert next Q-Value into the table
+        discretized_state = next_state_discretized  # Update the old state with the new one
+        if position > max_position:  # Only for plotting the results - store the highest point the car is able to reach
+            max_position = position
+
+    epsilon = reduce_epsilon(epsilon, epoch)  # Reduce epsilon
+    ##############################################################################
+
+    max_position_log.append(max_position)  # log the highest position the car was able to reach
+    running_mean = round(np.mean(max_position_log[-30:]), 2)  # Compute running mean of position over the last 30 epochs
+    mean_positions_log.append(running_mean)  # and log it
+    
+    ################ Plot the points and running mean ##################
+    if epoch % log_interval == 0:
+        plt.pause(0.0001)
+        ax.clear()
+        ax.scatter(epochs, max_position_log)
+        ax.plot(epochs, max_position_log)
+        ax.plot(epochs, mean_positions_log, label=f"Running Mean: {running_mean}")
+        plt.legend()
+        fig.canvas.draw()
+  ######################################################################
+
+env.close()
