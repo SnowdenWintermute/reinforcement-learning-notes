@@ -6,9 +6,13 @@ import gymnasium as gym
 from tensorflow.keras.models import Sequential,clone_model
 from tensorflow.keras.layers import Dense,Activation
 from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.utils import disable_interactive_logging
+
+disable_interactive_logging()
 
 env_name = 'CartPole-v1'
-env = gym.make(env_name, render_mode="human")
+# env = gym.make(env_name, render_mode="human")
+env = gym.make(env_name)
 
 env.reset()
 
@@ -38,13 +42,13 @@ target_model = clone_model(model)
 EPOCHS = 1000
 epsilon = 1.0
 EPSILON_REDUCE = 0.995
-
+BATCH_SIZE = 32
 LEARNING_RATE = 0.001
 GAMMA = 0.95
 
 def epsilon_greedy_action_selection(model, epsilon, observation):
     if np.random.random() > epsilon:
-        prediction = model.predict(observation)
+        prediction = model.predict(observation.reshape(1,1,4))
         action = np.argmax(prediction)
     else:
         action = np.random.randint(0,env.action_space.n)
@@ -68,7 +72,7 @@ def replay(replay_buffer, batch_size, model, target_model):
         target = targets[i].copy()
 
         if dones[i]:
-            target[i][actions[i]] = rewards[i]
+            target[0][actions[i]] = rewards[i]
         else:
             target[0][actions[i]] = rewards[i] + q_value * GAMMA
 
@@ -84,4 +88,36 @@ model.compile(loss='mse', optimizer=(Adam(lr=LEARNING_RATE)))
 
 model.summary()
 
+best_so_far = 0
+
+for epoch in range(EPOCHS):
+    observation = env.reset()[0]
+    # keras expects the observation in this shape:
+    # (1,X)
+    # it comes like this: [a,b,c,d] so we must .reshape --> (1,4) one by num_observations
+    observation = observation.reshape([1,4])
+    print("epoch: ", epoch)
+    terminated = False
+    truncated = False
+
+    points = 0
+
+    while not terminated and not truncated:
+        action = epsilon_greedy_action_selection(model, epsilon, observation)
+        next_observation, reward, terminated, truncated, info = env.step(action)
+        next_observation = next_observation.reshape([1,4])
+
+        replay_buffer.append((observation, action, reward, next_observation, terminated or truncated))
+        observation = next_observation
+        points += 1
+        replay(replay_buffer, BATCH_SIZE, model, target_model)
+
+    epsilon *= EPSILON_REDUCE
+
+    update_model_handler(epoch, update_target_model, model, target_model)
+
+    if points > best_so_far:
+        best_so_far = points
+    if epoch % 25 == 0:
+        print(f"{epoch}: POINTS: {points} eps: {epsilon} BSF: {best_so_far}")
 
